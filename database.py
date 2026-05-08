@@ -1,7 +1,7 @@
 import sqlite3
 import random
+from datetime import datetime
 from faker import Faker
-from datetime import datetime, timedelta
 
 fake = Faker('en_IN') # Using Indian locale for realistic names/addresses
 DB_NAME = "vulnerable_app.db"
