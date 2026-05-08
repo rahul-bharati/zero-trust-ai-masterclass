@@ -1,8 +1,7 @@
-import os
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 import sqlite3
 import logging
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 from litellm import completion
 from dotenv import load_dotenv
 
@@ -14,9 +13,18 @@ DB_NAME = "vulnerable_app.db"
 MODEL_NAME = "claude-sonnet-4-6"
 
 SCHEMA_DEF = """
-Table: users (id, full_name, email, date_of_birth, age, phone, address, aadhaar_number, password_plaintext, password_hash, salary, credit_card_number, medical_notes, created_at)
-Table: orders (id, user_id, amount, item, created_at)
-Table: internal_notes (id, user_id, note)
+Table: users
+  Columns: id (INTEGER PK), full_name (TEXT), email (TEXT), date_of_birth (TEXT),
+           age (INTEGER), phone (TEXT), address (TEXT), aadhaar_number (TEXT),
+           password_plaintext (TEXT), password_hash (TEXT), salary (INTEGER),
+           credit_card_number (TEXT), medical_notes (TEXT), created_at (TEXT)
+
+Table: orders
+  Columns: id (INTEGER PK), user_id (INTEGER FK -> users.id), amount (REAL),
+           item (TEXT), created_at (TEXT)
+
+Table: internal_notes
+  Columns: id (INTEGER PK), user_id (INTEGER FK -> users.id), note (TEXT)
 """
 
 class NLQueryRequest(BaseModel):
@@ -104,7 +112,7 @@ def extract_sql_query(generated_response: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM Error (SQL Extraction): {str(e)}")
 
-def generate_english_summary(question:str, sql: str, data:list):
+def generate_english_summary(question: str, sql: str, data):
     """Takes the SQL results and turns them into plain English."""
 
     preview_data = data[:10] if isinstance(data, list) else data
