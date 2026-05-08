@@ -86,9 +86,9 @@ The vocabulary is missing, there's no OWASP equivalent yet, and most tutorials a
 
 ### Goal
 
-Build a fully working, presentable app that embodies every anti-pattern that gets shipped to production. This is the **"before" picture**. No LLM yet — just raw SQL execution through a web UI, to prove the data exposure problem exists before any AI is involved.
+Build a working app that embodies the anti-patterns most commonly found in early-stage production systems. This is the **"before" picture** — no LLM yet, just raw SQL execution through a web UI, to establish that the data exposure problem exists independently of AI.
 
-The setup for Phase 2: *"The database has everything. The UI lets anyone ask anything. Now let's add an LLM."*
+Phase 2 adds natural language input on top of this same stack.
 
 ---
 
@@ -96,9 +96,9 @@ The setup for Phase 2: *"The database has everything. The UI lets anyone ask any
 
 | Layer | Technology | Why |
 |---|---|---|
-| Backend | FastAPI | Lightweight, async, easy to run and inspect live |
-| Frontend | Streamlit | Rapid prototyping, clean on a projector |
-| Database | SQLite | Zero setup, single file, trivially resettable between demos |
+| Backend | FastAPI | Lightweight, async, easy to run and inspect |
+| Frontend | Streamlit | Rapid UI prototyping |
+| Database | SQLite | Zero setup, single file, easily re-seeded |
 | Seed data | Faker (`en_IN`) | Realistic Indian names, addresses, phone numbers |
 
 ---
@@ -111,37 +111,37 @@ The schema is **deliberately over-privileged**. Every sensitive field that shoul
 
 ```sql
 CREATE TABLE users (
-    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-    full_name          TEXT,
-    email              TEXT,
-    date_of_birth      TEXT,
-    age                INTEGER,
-    phone              TEXT,
-    address            TEXT,
-    aadhaar_number     TEXT,           -- masked format: XXXX-XXXX-NNNN
-    password_plaintext TEXT,           -- yes, plaintext. this is intentional.
-    password_hash      TEXT,           -- SHA-256, for the illusion of security
-    salary             INTEGER,        -- INR
-    credit_card_number TEXT,
-    medical_notes      TEXT,
-    created_at         TEXT
+                       id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                       full_name          TEXT,
+                       email              TEXT,
+                       date_of_birth      TEXT,
+                       age                INTEGER,
+                       phone              TEXT,
+                       address            TEXT,
+                       aadhaar_number     TEXT,           -- masked format: XXXX-XXXX-NNNN
+                       password_plaintext TEXT,           -- yes, plaintext. this is intentional.
+                       password_hash      TEXT,           -- SHA-256, for the illusion of security
+                       salary             INTEGER,        -- INR
+                       credit_card_number TEXT,
+                       medical_notes      TEXT,
+                       created_at         TEXT
 );
 ```
 
-`password_plaintext` is a teaching moment — half the audience has shipped this; nobody admits it.
-Aadhaar is used for Indian audience impact; equivalent to SSN in sensitivity.
-**Seed:** 300 rows — enough that `SELECT * FROM users` produces a visually shocking wall of real-looking personal data.
+`password_plaintext` exists because storing plaintext passwords is a pattern that appears in real production systems more often than it should.
+Aadhaar is used as the national ID equivalent; comparable to SSN in sensitivity and regulatory weight.
+**Seed:** 300 rows — enough that `SELECT * FROM users` returns every sensitive field across the full user base in a single query.
 
 #### `orders` — The Transaction Trail
 
 ```sql
 CREATE TABLE orders (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id    INTEGER,
-    amount     REAL,
-    item       TEXT,
-    created_at TEXT,
-    FOREIGN KEY(user_id) REFERENCES users(id)
+                        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id    INTEGER,
+                        amount     REAL,
+                        item       TEXT,
+                        created_at TEXT,
+                        FOREIGN KEY(user_id) REFERENCES users(id)
 );
 ```
 
@@ -151,10 +151,10 @@ CREATE TABLE orders (
 
 ```sql
 CREATE TABLE internal_notes (
-    id      INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    note    TEXT,
-    FOREIGN KEY(user_id) REFERENCES users(id)
+                                id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                                user_id INTEGER,
+                                note    TEXT,
+                                FOREIGN KEY(user_id) REFERENCES users(id)
 );
 ```
 
@@ -180,7 +180,7 @@ Sample seeded notes:
 
 #### `database.py`
 
-Creates all three tables (dropping and recreating on each run for easy demo resets), then seeds 300 users, 500 orders, and 20 internal notes using Faker's `en_IN` locale.
+Creates all three tables (dropping and recreating on each run for a clean state), then seeds 300 users, 500 orders, and 20 internal notes using Faker's `en_IN` locale.
 
 #### `main.py`
 
@@ -196,7 +196,7 @@ This is the line that Phase 3 makes safe — not by changing it, but by wrapping
 
 #### `app.py`
 
-Single SQL input + `Run Query` button. Shows the **exact SQL executed** above the results — critical for the demo, the audience needs to *see* the query. Results render as a full-width interactive DataFrame with a row count so bulk extraction is visually obvious.
+Single SQL input + `Run Query` button. Displays the exact SQL executed above the results, alongside a full-width interactive DataFrame and a row count.
 
 ---
 
@@ -220,17 +220,17 @@ Open `http://localhost:8501`.
 
 ---
 
-### Demo Queries
+### Sample Queries
 
-| Query | What it exposes |
+| Query | What it returns |
 |---|---|
 | `SELECT * FROM users LIMIT 10` | Every column including passwords and Aadhaar |
 | `SELECT full_name, email, aadhaar_number, credit_card_number FROM users` | Targeted PII dump |
-| `SELECT full_name, salary, medical_notes FROM users ORDER BY salary DESC` | Salary + health data together |
+| `SELECT full_name, salary, medical_notes FROM users ORDER BY salary DESC` | Salary and health data together |
 | `SELECT u.full_name, o.amount, o.item FROM users u JOIN orders o ON u.id = o.user_id LIMIT 20` | Cross-table PII join |
 | `SELECT u.full_name, n.note FROM users u JOIN internal_notes n ON u.id = n.user_id` | Internal operational notes |
 | `PRAGMA table_info(users)` | Schema reconnaissance — full column list |
-| `DELETE FROM orders WHERE created_at < '2024-01-01'` | Destructive write, no confirmation |
+| `DELETE FROM orders WHERE created_at < '2024-01-01'` | Destructive write with no confirmation |
 
 ---
 
@@ -251,7 +251,7 @@ These absences are intentional — they are the setup for Phase 2:
 
 Phase 1 establishes the attack surface. Every gap above gets exploited in Phase 2 — not by a hacker, but **by the LLM**, doing exactly what it was asked in natural language.
 
-The question Phase 2 leaves hanging: *"So what do we do? Write a longer prompt? Hope the next model is smarter? No — we add a second model whose only job is to not trust the first one."*
+Phase 2 surfaces the core architectural question: how do you add safety to a system where the LLM itself is the untrusted component? Adding more constraints to the prompt is insufficient — the next phase introduces a second model whose only job is to evaluate inputs and outputs independently.
 
 That architecture is Phase 3.
 
