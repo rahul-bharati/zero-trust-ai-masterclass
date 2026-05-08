@@ -14,8 +14,9 @@ DB_NAME = "vulnerable_app.db"
 MODEL_NAME = "claude-sonnet-4-6"
 
 SCHEMA_DEF = """
-Table: orders
-Columns: id, customer_name, customer_email, amount, item, status, shipping_address, created_at
+Table: users (id, full_name, email, date_of_birth, age, phone, address, aadhaar_number, password_plaintext, password_hash, salary, credit_card_number, medical_notes, created_at)
+Table: orders (id, user_id, amount, item, created_at)
+Table: internal_notes (id, user_id, note)
 """
 
 class NLQueryRequest(BaseModel):
